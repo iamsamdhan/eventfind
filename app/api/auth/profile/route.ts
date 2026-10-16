@@ -2,9 +2,19 @@ import { NextResponse } from "next/server";
 import { profileUpdateSchema } from "@/lib/auth/validation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { findUserByUsername, updateUserProfile } from "@/lib/auth/store";
+import { verifyRequestOrigin } from "@/lib/auth/csrf";
 
 export async function PATCH(request: Request) {
   try {
+    // CSRF & Origin Verification
+    const originCheck = verifyRequestOrigin(request);
+    if (!originCheck.valid) {
+      return NextResponse.json(
+        { success: false, error: "Forbidden: Invalid or untrusted request origin." },
+        { status: 403 }
+      );
+    }
+
     const currentUser = await getCurrentUser();
     if (!currentUser) {
       return NextResponse.json(
@@ -15,10 +25,24 @@ export async function PATCH(request: Request) {
 
     const body = await request.json();
 
-    // Prevent privilege escalation: if role is provided, return 400 or ignore
+    // Prevent privilege escalation & immutable field alterations
     if ("role" in body && body.role !== currentUser.role) {
       return NextResponse.json(
         { success: false, error: "Forbidden: User role cannot be modified." },
+        { status: 403 }
+      );
+    }
+
+    if ("email" in body && body.email !== currentUser.email) {
+      return NextResponse.json(
+        { success: false, error: "Forbidden: Email address cannot be modified via profile update." },
+        { status: 403 }
+      );
+    }
+
+    if ("id" in body || "passwordHash" in body) {
+      return NextResponse.json(
+        { success: false, error: "Forbidden: System identifiers cannot be modified." },
         { status: 403 }
       );
     }
@@ -66,4 +90,3 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
-

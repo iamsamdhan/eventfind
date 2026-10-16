@@ -3,9 +3,19 @@ import { signupSchema } from "@/lib/auth/validation";
 import { findUserByEmail, findUserByUsername, createUser } from "@/lib/auth/store";
 import { hashPassword } from "@/lib/auth/password";
 import { createAndSetUserSession, getRoleDashboardUrl } from "@/lib/auth/session";
+import { verifyRequestOrigin } from "@/lib/auth/csrf";
 
 export async function POST(request: Request) {
   try {
+    // CSRF & Origin Verification
+    const originCheck = verifyRequestOrigin(request);
+    if (!originCheck.valid) {
+      return NextResponse.json(
+        { success: false, error: "Forbidden: Invalid or untrusted request origin." },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const validation = signupSchema.safeParse(body);
 
@@ -67,4 +77,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
-

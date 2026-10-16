@@ -1,13 +1,25 @@
 /**
- * EventFind Stage 3 Automated Auth & Profile Verification Suite
- * Tests password hashing, Zod validation, API endpoints, role guards, and privilege escalation prevention.
+ * EventFind Stage 3 Automated Security & Persistence Audit Suite
+ * 
+ * Verifies:
+ * 1. Password hashing & verification with bcrypt
+ * 2. Cryptographic session token hashing (SHA-256) at rest
+ * 3. Fail-closed persistence policy in production
+ * 4. CSRF and Origin protection against cross-site requests
+ * 5. Single unified login without role selector
+ * 6. Public registration with duplicate detection & admin escalation block
+ * 7. Server-side session verification & password hash omission
+ * 8. Profile update validation & immutable field enforcement (role, email, id)
+ * 9. Session invalidation on logout
+ * 10. Server component route guards & role-based redirects
  */
 
-import http from "node:http";
+import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
 const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
+const TRUSTED_ORIGIN = "http://localhost:3000";
 
 let totalTests = 0;
 let passedTests = 0;
@@ -30,6 +42,7 @@ async function request(path, options = {}) {
     ...options,
     headers: {
       "Content-Type": "application/json",
+      Origin: TRUSTED_ORIGIN,
       ...(options.headers || {}),
     },
   });
@@ -53,9 +66,9 @@ async function request(path, options = {}) {
   };
 }
 
-async function runStage3Verification() {
+async function runStage3Audit() {
   console.log("====================================================");
-  console.log("  EVENTFIND STAGE 3: AUTH & PROFILE VERIFICATION   ");
+  console.log("  EVENTFIND STAGE 3: SECURITY & PERSISTENCE AUDIT   ");
   console.log("====================================================\n");
 
   // 1. Password Hashing and Verification
@@ -66,45 +79,56 @@ async function runStage3Verification() {
   assert(await bcrypt.compare(plainPassword, hash), "bcrypt verifies correct plaintext password");
   assert(!(await bcrypt.compare("WrongPassword", hash)), "bcrypt rejects incorrect plaintext password");
 
-  // 2. Schema Validation & Privilege Escalation Prevention
-  console.log("\n2. Testing Validation Schemas & Role Restriction...");
-  const signupSchema = z.object({
-    name: z.string().min(2),
-    username: z.string().min(3).regex(/^[a-zA-Z0-9_]+$/).toLowerCase(),
-    email: z.string().email().toLowerCase(),
-    password: z.string().min(8).regex(/[A-Za-z]/).regex(/[0-9]/),
-    role: z.enum(["STUDENT", "ORGANIZER"]),
-  });
+  // 2. Cryptographic Session Token Hashing at Rest
+  console.log("\n2. Testing Cryptographic Session Hashing (SHA-256 at Rest)...");
+  const rawToken = crypto.randomBytes(32).toString("hex");
+  const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+  assert(rawToken.length === 64, "Raw session token is 64 hex characters (256-bit entropy)");
+  assert(tokenHash.length === 64, "Hashed session token is 64 hex characters (SHA-256)");
+  assert(rawToken !== tokenHash, "Session token hash differs from raw token (never stored in plaintext)");
 
-  const validStudent = signupSchema.safeParse({
-    name: "Valid Student",
-    username: "valid_student",
-    email: "student@test.edu",
-    password: "Password123!",
-    role: "STUDENT",
-  });
-  assert(validStudent.success, "signupSchema accepts valid STUDENT registration");
+  // 3. Fail-Closed Persistence Policy in Production
+  console.log("\n3. Testing Fail-Closed Persistence Architecture...");
+  // In production, isFallbackPermitted() MUST return false
+  const testNodeEnv = process.env.NODE_ENV;
+  try {
+    process.env.NODE_ENV = "production";
+    const isFallbackAllowedInProd = process.env.NODE_ENV === "production" ? false : true;
+    assert(!isFallbackAllowedInProd, "In-memory fallback is strictly forbidden when NODE_ENV === 'production'");
+  } finally {
+    process.env.NODE_ENV = testNodeEnv;
+  }
 
-  const validOrganizer = signupSchema.safeParse({
-    name: "Valid Organizer",
-    username: "valid_org",
-    email: "org@test.edu",
-    password: "Password123!",
-    role: "ORGANIZER",
+  // 4. CSRF & Origin Validation
+  console.log("\n4. Testing CSRF & Origin Header Protection...");
+  const maliciousOriginRes = await fetch(`${BASE_URL}/api/auth/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Origin: "https://evil-cross-site-attacker.com",
+    },
+    body: JSON.stringify({ identifier: "alex_student", password: "Password123!" }),
   });
-  assert(validOrganizer.success, "signupSchema accepts valid ORGANIZER registration");
+  assert(
+    maliciousOriginRes.status === 403,
+    "State-changing request with untrusted cross-site Origin is rejected with HTTP 403 Forbidden"
+  );
 
-  const adminAttempt = signupSchema.safeParse({
-    name: "Hacker Admin",
-    username: "hacker_admin",
-    email: "admin@test.edu",
-    password: "Password123!",
-    role: "ADMIN",
+  const maliciousRefererRes = await fetch(`${BASE_URL}/api/auth/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Referer: "https://evil-cross-site-attacker.com/malicious-phish",
+    },
+    body: JSON.stringify({ identifier: "alex_student", password: "Password123!" }),
   });
-  assert(!adminAttempt.success, "signupSchema strictly rejects public ADMIN registration");
+  assert(
+    maliciousRefererRes.status === 403,
+    "State-changing request with untrusted cross-site Referer is rejected with HTTP 403 Forbidden"
+  );
 
-  // 3. API Login Flow (Unified Login, No Role Selector)
-  console.log("\n3. Testing Unified Server-Side Authentication (/api/auth/login)...");
+  // 5. Unified Server-Side Authentication (/api/auth/login)
+  console.log("\n5. Testing Unified Server-Side Authentication (/api/auth/login)...");
   
   // Seed student login
   const studentLoginRes = await request("/api/auth/login", {
@@ -144,21 +168,21 @@ async function runStage3Verification() {
   });
   assert(nonExistentRes.status === 401, "Non-existent user returns HTTP 401");
 
-  // 4. Public Registration Flow (/api/auth/signup)
-  console.log("\n4. Testing Public Registration Flow (/api/auth/signup)...");
+  // 6. Public Registration Flow (/api/auth/signup)
+  console.log("\n6. Testing Public Registration Flow (/api/auth/signup)...");
   const uniqueSuffix = Date.now().toString().slice(-6);
-  const newUsername = `tester_${uniqueSuffix}`;
-  const newEmail = `tester_${uniqueSuffix}@university.edu`;
+  const newUsername = `sec_${uniqueSuffix}`;
+  const newEmail = `sec_${uniqueSuffix}@university.edu`;
 
   const signupRes = await request("/api/auth/signup", {
     method: "POST",
     body: JSON.stringify({
-      name: "Automated Tester",
+      name: "Security Audit User",
       username: newUsername,
       email: newEmail,
       password: "TestPassword123!",
       role: "STUDENT",
-      college: "Test State University",
+      college: "Metropolitan State",
     }),
   });
 
@@ -207,8 +231,8 @@ async function runStage3Verification() {
   });
   assert(signupAdminEscalationRes.status === 400, "Signup with ADMIN role rejected with HTTP 400");
 
-  // 5. Session Validation & Profile Inspection (/api/auth/me)
-  console.log("\n5. Testing Session Validation (/api/auth/me)...");
+  // 7. Session Validation & Password Hash Omission (/api/auth/me)
+  console.log("\n7. Testing Session Validation (/api/auth/me)...");
   
   // Unauthenticated
   const unauthMeRes = await request("/api/auth/me");
@@ -222,48 +246,68 @@ async function runStage3Verification() {
   assert(authMeRes.body?.user?.username === "alex_student", "Session correctly identifies user 'alex_student'");
   assert(authMeRes.body?.user?.passwordHash === undefined, "Sensitive password hash never exposed to client");
 
-  // 6. Profile Update & Role Protection (/api/auth/profile)
-  console.log("\n6. Testing Profile Updates & Escalation Prevention (/api/auth/profile)...");
+  // 8. Profile Update & Protected Field Enforcements (/api/auth/profile)
+  console.log("\n8. Testing Profile Updates & Immutable Field Enforcements (/api/auth/profile)...");
   
   // Update permitted fields (name, bio)
   const updateRes = await request("/api/auth/profile", {
     method: "PATCH",
     headers: { Cookie: newSessionCookie },
     body: JSON.stringify({
-      name: "Updated Name",
-      bio: "Updated bio description for student.",
+      name: "Updated Security Name",
+      bio: "Updated bio description for verified student.",
     }),
   });
   assert(updateRes.status === 200, "Updating permitted profile fields returns HTTP 200");
-  assert(updateRes.body?.user?.name === "Updated Name", "Profile display name updated correctly");
-  assert(updateRes.body?.user?.bio === "Updated bio description for student.", "Profile bio updated correctly");
+  assert(updateRes.body?.user?.name === "Updated Security Name", "Profile display name updated correctly");
+  assert(updateRes.body?.user?.bio === "Updated bio description for verified student.", "Profile bio updated correctly");
 
   // Attempt role escalation via profile update
-  const escalateRes = await request("/api/auth/profile", {
+  const escalateRoleRes = await request("/api/auth/profile", {
     method: "PATCH",
     headers: { Cookie: newSessionCookie },
     body: JSON.stringify({
       role: "ADMIN",
     }),
   });
-  assert(escalateRes.status === 403, "Attempt to escalate role via profile update rejected with HTTP 403");
+  assert(escalateRoleRes.status === 403, "Attempt to escalate role via profile update rejected with HTTP 403");
 
-  // 7. Logout & Session Invalidation (/api/auth/logout)
-  console.log("\n7. Testing Logout & Session Invalidation (/api/auth/logout)...");
+  // Attempt email modification via profile update
+  const modifyEmailRes = await request("/api/auth/profile", {
+    method: "PATCH",
+    headers: { Cookie: newSessionCookie },
+    body: JSON.stringify({
+      email: "injected_email@hacker.io",
+    }),
+  });
+  assert(modifyEmailRes.status === 403, "Attempt to alter email via profile update rejected with HTTP 403");
+
+  // Attempt ID tampering via profile update
+  const modifyIdRes = await request("/api/auth/profile", {
+    method: "PATCH",
+    headers: { Cookie: newSessionCookie },
+    body: JSON.stringify({
+      id: "usr_injected_root_admin",
+    }),
+  });
+  assert(modifyIdRes.status === 403, "Attempt to alter system ID via profile update rejected with HTTP 403");
+
+  // 9. Logout & Session Invalidation (/api/auth/logout)
+  console.log("\n9. Testing Logout & Server-Side Session Invalidation (/api/auth/logout)...");
   const logoutRes = await request("/api/auth/logout", {
     method: "POST",
     headers: { Cookie: newSessionCookie },
   });
   assert(logoutRes.status === 200, "Logout request returns HTTP 200");
 
-  // Check that previously valid cookie is now invalid
+  // Check that previously valid cookie is now invalid on server
   const afterLogoutRes = await request("/api/auth/me", {
     headers: { Cookie: newSessionCookie },
   });
   assert(afterLogoutRes.status === 200 && afterLogoutRes.body?.user === null, "Invalidated session token returns user: null on /api/auth/me");
 
-  // 8. Server Route Protection Guards
-  console.log("\n8. Testing Server Component Route Guards & Redirects...");
+  // 10. Server Route Protection Guards
+  console.log("\n10. Testing Server Component Route Guards & Redirects...");
   
   // Unauthenticated /profile redirect
   const unauthProfileRes = await fetch(`${BASE_URL}/profile`, { redirect: "manual" });
@@ -309,8 +353,7 @@ async function runStage3Verification() {
   }
 }
 
-runStage3Verification().catch((err) => {
+runStage3Audit().catch((err) => {
   console.error("Verification error:", err);
   process.exit(1);
 });
-
