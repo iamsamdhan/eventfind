@@ -52,6 +52,8 @@ async function runBrowserVerification() {
   page.on('console', msg => {
     if (msg.type() === 'error') {
       const errorText = msg.text();
+      const locUrl = msg.location()?.url || '';
+      if (errorText.includes('invalid-non-existent-event-xyz') || locUrl.includes('invalid-non-existent-event-xyz') || (errorText.includes('404') && locUrl.includes('invalid'))) return; // intentional 404 test
       console.error(`[Browser Console Error] ${errorText}`);
       results.consoleErrors.push({ text: errorText, location: msg.location() });
     }
@@ -59,12 +61,14 @@ async function runBrowserVerification() {
 
   // Track failed network requests
   page.on('requestfailed', request => {
+    if (request.url().includes('invalid-non-existent-event-xyz')) return;
     console.error(`[Request Failed] ${request.url()} - ${request.failure()?.errorText}`);
     results.failedRequests.push({ url: request.url(), error: request.failure()?.errorText });
   });
 
   page.on('response', response => {
     if (response.status() >= 400) {
+      if (response.url().includes('invalid-non-existent-event-xyz')) return; // intentional 404 test
       console.error(`[HTTP ${response.status()}] ${response.url()}`);
       results.failedRequests.push({ url: response.url(), status: response.status() });
     }
@@ -318,6 +322,112 @@ async function runBrowserVerification() {
     mobileDrawerOpened,
   };
 
+  // 6. Stage 2: Event Discovery Search & Filter Interactive Workflow
+  console.log('\n--- Testing Discovery Search & Filter Workflow (/explore) ---');
+  await page.setViewport({ width: 1280, height: 800 });
+  await page.goto(`${BASE_URL}/explore`, { waitUntil: 'domcontentloaded', timeout: 10000 });
+  await new Promise(r => setTimeout(r, 600));
+
+  const initialCount = await page.evaluate(() => document.querySelectorAll('article').length);
+  console.log(`Explore initial event count: ${initialCount}`);
+
+  // Test keyword search
+  const searchInput = await page.$('input[placeholder*="Search by event title"]');
+  let searchWorks = false;
+  let resetWorks = false;
+  let categoryFilterWorks = false;
+
+  if (searchInput) {
+    await searchInput.type('HackPulse');
+    await new Promise(r => setTimeout(r, 300));
+
+    const searchCount = await page.evaluate(() => document.querySelectorAll('article').length);
+    const searchTitle = await page.evaluate(() => document.querySelector('article h3')?.textContent || '');
+    console.log(`Search 'HackPulse': found ${searchCount} events, Title: "${searchTitle}"`);
+    searchWorks = searchCount === 1 && searchTitle.includes('HackPulse');
+
+    // Clear search
+    const clearBtn = await page.$('button[aria-label="Clear search query"]');
+    if (clearBtn) {
+      await clearBtn.click();
+      await new Promise(r => setTimeout(r, 300));
+    } else {
+      await searchInput.click({ clickCount: 3 });
+      await page.keyboard.press('Backspace');
+    }
+
+    // Test Category filter pill
+    const workshopPill = await page.evaluateHandle(() => {
+      const buttons = Array.from(document.querySelectorAll('button'));
+      return buttons.find(b => b.textContent.trim() === 'Workshops');
+    });
+
+    if (workshopPill && workshopPill.asElement()) {
+      await workshopPill.asElement().click();
+      await new Promise(r => setTimeout(r, 300));
+      const workshopCount = await page.evaluate(() => document.querySelectorAll('article').length);
+      console.log(`Category 'Workshops': found ${workshopCount} events`);
+      categoryFilterWorks = workshopCount === 2;
+    }
+
+    // Test Reset All
+    const resetBtn = await page.evaluateHandle(() => {
+      const buttons = Array.from(document.querySelectorAll('button'));
+      return buttons.find(b => b.textContent.includes('Reset all'));
+    });
+
+    if (resetBtn && resetBtn.asElement()) {
+      await resetBtn.asElement().click();
+      await new Promise(r => setTimeout(r, 300));
+      const resetCount = await page.evaluate(() => document.querySelectorAll('article').length);
+      console.log(`After Reset All: found ${resetCount} events`);
+      resetWorks = resetCount === initialCount;
+    }
+  }
+
+  results.discoveryWorkflowTest = {
+    initialCount,
+    searchWorks,
+    categoryFilterWorks,
+    resetWorks,
+    allPassed: searchWorks && categoryFilterWorks && resetWorks,
+  };
+
+  // 7. Stage 2: Event Detail Route (/events/[id])
+  console.log('\n--- Testing Event Detail Page (/events/hackpulse-2026) ---');
+  const detailRes = await page.goto(`${BASE_URL}/events/hackpulse-2026`, { waitUntil: 'domcontentloaded', timeout: 10000 });
+  await new Promise(r => setTimeout(r, 500));
+
+  const detailStatus = detailRes.status();
+  const detailData = await page.evaluate(() => {
+    return {
+      title: document.querySelector('h1')?.textContent || '',
+      hasAbout: !!document.querySelector('h2'),
+      hasSidebar: !!document.querySelector('aside'),
+      hasCapacity: document.querySelector('aside')?.textContent.includes('Attendee Capacity') || false,
+      hasRegisterCTA: document.querySelector('aside button')?.textContent.includes('Register') || false,
+      hasEligibility: document.body.textContent.includes('Eligibility & Requirements'),
+    };
+  });
+
+  const detailScreenshot = path.join(SCREENSHOT_DIR, 'event_detail_desktop.png');
+  await page.screenshot({ path: detailScreenshot, fullPage: true });
+
+  console.log(`Event Detail status: ${detailStatus}, Title: "${detailData.title}", Sidebar: ${detailData.hasSidebar}, RegisterCTA: ${detailData.hasRegisterCTA}`);
+
+  // Test invalid event 404
+  console.log('\n--- Testing Invalid Event 404 Handling ---');
+  const notFoundRes = await page.goto(`${BASE_URL}/events/invalid-non-existent-event-xyz`, { waitUntil: 'domcontentloaded', timeout: 10000 });
+  const notFoundStatus = notFoundRes.status();
+  console.log(`Invalid Event (/events/invalid-non-existent-event-xyz): HTTP ${notFoundStatus}`);
+
+  results.eventDetailTest = {
+    status: detailStatus,
+    data: detailData,
+    notFoundStatus,
+    passed: detailStatus === 200 && detailData.hasRegisterCTA && notFoundStatus === 404,
+  };
+
   await browser.close();
 
   const reportFile = path.join(OUTPUT_DIR, 'verification-summary.json');
@@ -332,6 +442,8 @@ async function runBrowserVerification() {
   console.log(`- Theme toggle (light/dark): ${results.themeToggleTest?.toggledSuccessfully ? 'PASSED' : 'FAILED'}`);
   console.log(`- Shared login (no role selector): ${!results.loginPageAudit?.hasRoleSelector ? 'PASSED' : 'FAILED'}`);
   console.log(`- Mobile viewport & drawer: ${results.mobileViewportTest?.mobileDrawerOpened ? 'PASSED' : 'FAILED'}`);
+  console.log(`- Discovery search & filter workflow: ${results.discoveryWorkflowTest?.allPassed ? 'PASSED' : 'FAILED'}`);
+  console.log(`- Event detail page & 404 test: ${results.eventDetailTest?.passed ? 'PASSED' : 'FAILED'}`);
   console.log(`- Report written to: ${reportFile}`);
   console.log('=============================================\n');
 
@@ -341,7 +453,9 @@ async function runBrowserVerification() {
     !results.themeToggleTest?.toggledSuccessfully ||
     results.loginPageAudit?.hasRoleSelector ||
     !results.mobileViewportTest?.mobileDrawerOpened ||
-    !results.directLogoVerification.every(l => l.success)
+    !results.directLogoVerification.every(l => l.success) ||
+    !results.discoveryWorkflowTest?.allPassed ||
+    !results.eventDetailTest?.passed
   ) {
     console.error('Verification found defects!');
     process.exit(1);

@@ -1,8 +1,10 @@
 import Link from "next/link";
 import Image from "next/image";
+import { getFeaturedEvents } from "@/lib/events/service";
+import { EventCard } from "@/components/events/EventCard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   Sparkles, 
   Compass, 
@@ -16,12 +18,14 @@ import {
   Zap
 } from "lucide-react";
 
-export default function HomePage() {
+export default async function HomePage() {
+  const featuredEvents = await getFeaturedEvents();
+
   const categories = [
-    { name: "Hackathons", count: "Rapid prototyping & innovation sprints", icon: Zap, badge: "Popular" },
-    { name: "Workshops", count: "Hands-on skill building & masterclasses", icon: GraduationCap, badge: "Learning" },
-    { name: "College Fests", count: "Cultural, sports & technical celebrations", icon: Sparkles, badge: "Campus" },
-    { name: "Competitions", count: "Case studies, design jams & coding cups", icon: Trophy, badge: "Prizes" },
+    { name: "Hackathons", category: "HACKATHON", count: "Rapid prototyping & innovation sprints", icon: Zap, badge: "Popular" },
+    { name: "Workshops", category: "WORKSHOP", count: "Hands-on skill building & masterclasses", icon: GraduationCap, badge: "Learning" },
+    { name: "College Fests", category: "FEST", count: "Cultural, sports & technical celebrations", icon: Sparkles, badge: "Campus" },
+    { name: "Competitions", category: "COMPETITION", count: "Case studies, design jams & coding cups", icon: Trophy, badge: "Prizes" },
   ];
 
   const highlights = [
@@ -98,7 +102,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Featured Category Grid */}
+      {/* Featured Category Grid with Live Filters */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-8 gap-4">
           <div>
@@ -107,7 +111,7 @@ export default function HomePage() {
               Explore by Opportunity
             </h2>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Find what fits your semester schedule and team goals.
+              Click a category to instantly browse verified student opportunities.
             </p>
           </div>
           <Link href="/explore">
@@ -121,29 +125,54 @@ export default function HomePage() {
           {categories.map((cat) => {
             const Icon = cat.icon;
             return (
-              <Card
-                key={cat.name}
-                className="hover:border-blue-500/50 hover:shadow-md transition-all duration-200 group cursor-pointer"
-              >
-                <CardHeader className="p-5 pb-3">
-                  <div className="flex items-center justify-between">
-                    <div className="h-10 w-10 rounded-xl bg-blue-50 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                      <Icon className="w-5 h-5" />
+              <Link key={cat.name} href={`/explore?category=${cat.category}`}>
+                <Card className="h-full hover:border-blue-500/50 hover:shadow-md transition-all duration-200 group cursor-pointer">
+                  <CardHeader className="p-5 pb-3">
+                    <div className="flex items-center justify-between">
+                      <div className="h-10 w-10 rounded-xl bg-blue-50 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <Badge variant="neutral">{cat.badge}</Badge>
                     </div>
-                    <Badge variant="neutral">{cat.badge}</Badge>
-                  </div>
-                  <CardTitle className="text-base pt-3 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                    {cat.name}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-5 pt-0">
-                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                    {cat.count}
-                  </p>
-                </CardContent>
-              </Card>
+                    <CardTitle className="text-base pt-3 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                      {cat.name}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-5 pt-0">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                      {cat.count}
+                    </p>
+                  </CardContent>
+                </Card>
+              </Link>
             );
           })}
+        </div>
+      </section>
+
+      {/* Featured Events Section */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-8 gap-4">
+          <div>
+            <Badge variant="brand" className="mb-2">Highlighted</Badge>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+              Featured Opportunities
+            </h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+              Top curated hackathons and workshops with open registrations.
+            </p>
+          </div>
+          <Link href="/explore">
+            <Button variant="outline" size="sm" className="gap-1.5 text-blue-600 dark:text-blue-400">
+              Browse Complete Catalog <ArrowRight className="w-4 h-4" />
+            </Button>
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {featuredEvents.slice(0, 3).map((event) => (
+            <EventCard key={event.id} event={event} featured />
+          ))}
         </div>
       </section>
 
@@ -218,4 +247,3 @@ export default function HomePage() {
     </div>
   );
 }
-
