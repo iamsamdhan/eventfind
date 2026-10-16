@@ -44,6 +44,7 @@ export interface EventItem {
   organizer: EventOrganizer;
   featured: boolean;
   published: boolean;
+  isClosed?: boolean;
   bannerGradient: string;
   imageUrl?: string;
 }

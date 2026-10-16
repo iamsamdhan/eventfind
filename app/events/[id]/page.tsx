@@ -58,6 +58,15 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
   }
 
   const currentUser = await getCurrentUser();
+
+  if (!event.published) {
+    const isOwnerOrAdmin =
+      currentUser && (currentUser.id === event.organizer.id || currentUser.role === "ADMIN");
+    if (!isOwnerOrAdmin) {
+      notFound();
+    }
+  }
+
   let userRegistrations: any[] = [];
   let userLeaderTeams: any[] = [];
 

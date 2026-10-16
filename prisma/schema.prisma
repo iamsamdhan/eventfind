@@ -112,6 +112,7 @@ model Event {
   prizes               String[]      @default([])
   featured             Boolean       @default(false)
   published            Boolean       @default(true)
+  isClosed             Boolean       @default(false)
   bannerGradient       String        @default("from-blue-600 via-indigo-600 to-purple-700")
   imageUrl             String?
   organizerId          String?
@@ -126,6 +127,7 @@ model Event {
   @@index([slug])
   @@index([category])
   @@index([published])
+  @@index([organizerId])
   @@map("events")
 }
 

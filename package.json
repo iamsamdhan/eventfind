@@ -13,6 +13,7 @@
     "test:teams": "node scripts/verify-stage4-teams.mjs",
     "test:db": "node scripts/verify-postgres-teams.mjs",
     "test:registrations": "node scripts/verify-stage5-registrations.mjs",
+    "test:organizer": "node scripts/verify-stage6-organizer.mjs",
     "test:browser": "node scripts/verify-browser.mjs"
   },
   "dependencies": {

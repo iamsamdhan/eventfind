@@ -51,6 +51,8 @@ export function EventRegistrationCard({
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = React.useState(false);
 
   const isDeadlinePassed = new Date() > new Date(event.registrationDeadline);
+  const isRegistrationClosed = Boolean(event.isClosed) || isDeadlinePassed;
+  const isDraft = !event.published;
   const spotsRemaining = Math.max(0, event.capacity - event.registeredCount);
   const isFull = spotsRemaining <= 0;
 
@@ -248,14 +250,25 @@ export function EventRegistrationCard({
             Organizers cannot register as attendee participants. Use a student account to test registrations.
           </p>
         </div>
-      ) : /* STATE 4: DEADLINE PASSED */
-      isDeadlinePassed ? (
+      ) : isDraft ? (
+        <div className="space-y-2 text-center">
+          <Button size="lg" disabled className="w-full bg-slate-200 dark:bg-slate-800 text-slate-500 cursor-not-allowed">
+            Draft Mode — Closed
+          </Button>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            This event listing is currently unpublished and not accepting registrations.
+          </p>
+        </div>
+      ) : /* STATE 4: REGISTRATION CLOSED OR DEADLINE PASSED */
+      isRegistrationClosed ? (
         <div className="space-y-2 text-center">
           <Button size="lg" disabled className="w-full bg-slate-300 dark:bg-slate-800 text-slate-500 cursor-not-allowed">
             Registration Closed
           </Button>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            The deadline for this event was {new Date(event.registrationDeadline).toLocaleDateString()}.
+            {event.isClosed
+              ? "Registration for this event has been closed by the organizer."
+              : `The deadline for this event was ${new Date(event.registrationDeadline).toLocaleDateString()}.`}
           </p>
         </div>
       ) : (

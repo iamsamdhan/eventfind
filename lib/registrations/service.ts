@@ -66,7 +66,11 @@ export async function registerForEvent(
   }
 
   if (!event.published) {
-    throw new Error("This event is not open for public registration.");
+    throw new Error("This event is currently in draft status and is not accepting registrations.");
+  }
+
+  if (event.isClosed) {
+    throw new Error("Registration for this event has been closed by the organizer.");
   }
 
   const now = new Date();

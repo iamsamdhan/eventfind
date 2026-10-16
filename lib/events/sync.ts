@@ -106,6 +106,7 @@ export async function getDbEventBySlugOrId(idOrSlug: string): Promise<EventItem 
           prizes: ev.prizes,
           featured: ev.featured,
           published: ev.published,
+          isClosed: ev.isClosed,
           bannerGradient: ev.bannerGradient,
           imageUrl: ev.imageUrl || undefined,
           organizer: {

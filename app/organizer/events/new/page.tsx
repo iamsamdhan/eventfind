@@ -1,30 +1,27 @@
-import Link from "next/link";
+import { Metadata } from "next";
 import { requireRole } from "@/lib/auth/session";
-import { Button } from "@/components/ui/button";
-import { Card, CardTitle, CardDescription } from "@/components/ui/card";
-import { CalendarPlus, ArrowLeft } from "lucide-react";
+import { OrganizerEventForm } from "@/components/organizer/OrganizerEventForm";
+
+export const metadata: Metadata = {
+  title: "Host a New Event — EventFind",
+  description: "Create and publish collegiate events, hackathons, and workshops on EventFind.",
+};
 
 export default async function NewEventPage() {
   await requireRole(["ORGANIZER", "ADMIN"], "/organizer/events/new");
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
-      <Card className="text-center p-8 space-y-4">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400">
-          <CalendarPlus className="h-6 w-6" />
-        </div>
-        <CardTitle className="text-2xl font-bold">Host an Event</CardTitle>
-        <CardDescription className="text-sm max-w-md mx-auto leading-relaxed">
-          The event creation wizard, registration window management, and capacity settings will be built in Stage 6 (Organizer Dashboard).
-        </CardDescription>
-        <div className="pt-2">
-          <Link href="/organizer/dashboard">
-            <Button variant="outline" size="sm" className="gap-2">
-              <ArrowLeft className="w-4 h-4" /> Return to Organizer Hub
-            </Button>
-          </Link>
-        </div>
-      </Card>
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-6">
+      <div className="space-y-1">
+        <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+          Host a New Event
+        </h1>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Create an event listing with custom dates, team rules, capacity caps, and instant publication options.
+        </p>
+      </div>
+
+      <OrganizerEventForm mode="create" />
     </div>
   );
 }

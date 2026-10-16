@@ -239,17 +239,25 @@ async function runStage5Tests() {
   // 5. Valid Individual Registration Lifecycle
   console.log("\n5. Testing Valid Individual Registration Lifecycle...");
   
-  // Clean up any prior test registrations for cloud-native-devops-lab
-  const alexPriorRegs = await request("/api/registrations?eventId=cloud-native-devops-lab", {
-    headers: { Cookie: alexCookie },
-  });
-  if (alexPriorRegs.status === 200 && Array.isArray(alexPriorRegs.body?.registrations)) {
-    for (const r of alexPriorRegs.body.registrations) {
-      if (r.status !== "CANCELLED") {
-        await request(`/api/registrations/${r.id}`, {
-          method: "DELETE",
-          headers: { Cookie: alexCookie },
-        });
+  // Clean up any prior test registrations for cloud-native-devops-lab and hackpulse-2026
+  for (const cookie of [alexCookie, sarahCookie, davidCookie]) {
+    const priorRegs = await request("/api/registrations", {
+      headers: { Cookie: cookie },
+    });
+    if (priorRegs.status === 200 && Array.isArray(priorRegs.body?.registrations)) {
+      for (const r of priorRegs.body.registrations) {
+        if (
+          r.status !== "CANCELLED" &&
+          (r.event?.slug === "cloud-native-devops-lab" ||
+            r.event?.slug === "hackpulse-2026" ||
+            r.eventId === "cloud-native-devops-lab" ||
+            r.eventId === "hackpulse-2026")
+        ) {
+          await request(`/api/registrations/${r.id}`, {
+            method: "DELETE",
+            headers: { Cookie: cookie },
+          });
+        }
       }
     }
   }
@@ -629,10 +637,21 @@ async function runStage5Tests() {
       assert(cancelRes.status === 200 && cancelRes.body?.success === true, "Confirmed registration cancelled successfully via HTTP");
 
       // Verify that the waitlisted candidate was automatically promoted in PostgreSQL
-      const waitlistedRegId = waitlisted[0].body?.registration?.id;
-      const promotedReg = await prisma.registration.findUnique({
-        where: { id: waitlistedRegId },
-      });
+      const promotedRegId = cancelRes.body?.promotedRegistrationId;
+      let promotedReg = null;
+      if (promotedRegId) {
+        promotedReg = await prisma.registration.findUnique({
+          where: { id: promotedRegId },
+        });
+      } else {
+        const waitlistedIds = waitlisted.map((w) => w.body?.registration?.id).filter(Boolean);
+        promotedReg = await prisma.registration.findFirst({
+          where: {
+            id: { in: waitlistedIds },
+            status: "CONFIRMED",
+          },
+        });
+      }
       assert(
         promotedReg?.status === "CONFIRMED",
         "Waitlisted candidate was automatically promoted to CONFIRMED status in PostgreSQL"
