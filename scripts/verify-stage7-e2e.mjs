@@ -806,5 +806,9 @@ runStage7E2ESuite()
     process.exit(1);
   })
   .finally(async () => {
+    try {
+      await prisma.registration.deleteMany({ where: { event: { slug: { startsWith: "e2e-" } } } });
+      await prisma.event.deleteMany({ where: { slug: { startsWith: "e2e-" } } });
+    } catch {}
     await prisma.$disconnect();
   });
