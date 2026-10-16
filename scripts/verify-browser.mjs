@@ -463,6 +463,27 @@ async function runBrowserVerification() {
 
     const profileScreenshot = path.join(SCREENSHOT_DIR, 'profile_page_desktop.png');
     await page.screenshot({ path: profileScreenshot, fullPage: true });
+
+    // 9. Stage 4: Visit /teams with active session & verify Team Management Hub
+    console.log('\n--- Testing Authenticated Teams Hub (/teams) ---');
+    const teamsRes = await page.goto(`${BASE_URL}/teams`, { waitUntil: 'domcontentloaded', timeout: 10000 });
+    await new Promise(r => setTimeout(r, 600));
+    const teamsStatus = teamsRes.status();
+    const teamsTitle = await page.evaluate(() => document.querySelector('h1')?.textContent || '');
+    const hasCreateTeamBtn = await page.evaluate(() => {
+      const buttons = Array.from(document.querySelectorAll('button'));
+      return buttons.some(b => b.textContent.includes('Create Team'));
+    });
+    console.log(`Teams page status: ${teamsStatus}, Title: "${teamsTitle}", Create Team CTA: ${hasCreateTeamBtn}`);
+    const teamsScreenshot = path.join(SCREENSHOT_DIR, 'teams_hub_desktop.png');
+    await page.screenshot({ path: teamsScreenshot, fullPage: true });
+
+    results.stage4TeamsWorkflow = {
+      teamsStatus,
+      teamsTitle,
+      hasCreateTeamBtn,
+      passed: teamsStatus === 200 && teamsTitle.includes('Team Management Hub') && hasCreateTeamBtn,
+    };
   }
 
   results.stage3BrowserWorkflow = {
@@ -488,6 +509,7 @@ async function runBrowserVerification() {
   console.log(`- Discovery search & filter workflow: ${results.discoveryWorkflowTest?.allPassed ? 'PASSED' : 'FAILED'}`);
   console.log(`- Event detail page & 404 test: ${results.eventDetailTest?.passed ? 'PASSED' : 'FAILED'}`);
   console.log(`- Interactive login & profile test: ${results.stage3BrowserWorkflow?.passed ? 'PASSED' : 'FAILED'}`);
+  console.log(`- Authenticated teams hub test: ${results.stage4TeamsWorkflow?.passed ? 'PASSED' : 'FAILED'}`);
   console.log(`- Report written to: ${reportFile}`);
   console.log('=============================================\n');
 
@@ -500,7 +522,8 @@ async function runBrowserVerification() {
     !results.directLogoVerification.every(l => l.success) ||
     !results.discoveryWorkflowTest?.allPassed ||
     !results.eventDetailTest?.passed ||
-    !results.stage3BrowserWorkflow?.passed
+    !results.stage3BrowserWorkflow?.passed ||
+    !results.stage4TeamsWorkflow?.passed
   ) {
     console.error('Verification found defects!');
     process.exit(1);

@@ -13,6 +13,18 @@ enum UserRole {
   ADMIN
 }
 
+enum TeamRole {
+  LEADER
+  MEMBER
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
 model User {
   id           String    @id @default(cuid())
   username     String    @unique
@@ -27,7 +39,11 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  sessions     Session[]
+  sessions            Session[]
+  createdTeams        Team[]           @relation("CreatedTeams")
+  teamMemberships     TeamMember[]     @relation("UserMemberships")
+  sentInvitations     TeamInvitation[] @relation("SentInvitations")
+  receivedInvitations TeamInvitation[] @relation("ReceivedInvitations")
 
   @@index([email])
   @@index([username])
@@ -47,3 +63,57 @@ model Session {
   @@map("sessions")
 }
 
+model Team {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  creatorId   String
+  creator     User     @relation("CreatedTeams", fields: [creatorId], references: [id], onDelete: Cascade)
+  eventId     String?  // Optional association with an event slug or ID
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members     TeamMember[]
+  invitations TeamInvitation[]
+
+  @@index([creatorId])
+  @@index([eventId])
+  @@index([slug])
+  @@map("teams")
+}
+
+model TeamMember {
+  id       String   @id @default(cuid())
+  teamId   String
+  team     Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User     @relation("UserMemberships", fields: [userId], references: [id], onDelete: Cascade)
+  role     TeamRole @default(MEMBER)
+  joinedAt DateTime @default(now())
+
+  @@unique([teamId, userId])
+  @@index([teamId])
+  @@index([userId])
+  @@map("team_members")
+}
+
+model TeamInvitation {
+  id        String           @id @default(cuid())
+  teamId    String
+  team      Team             @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  inviterId String
+  inviter   User             @relation("SentInvitations", fields: [inviterId], references: [id], onDelete: Cascade)
+  inviteeId String
+  invitee   User             @relation("ReceivedInvitations", fields: [inviteeId], references: [id], onDelete: Cascade)
+  status    InvitationStatus @default(PENDING)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  expiresAt DateTime
+
+  @@index([teamId])
+  @@index([inviterId])
+  @@index([inviteeId])
+  @@index([status])
+  @@map("team_invitations")
+}

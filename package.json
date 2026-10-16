@@ -10,6 +10,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test:auth": "node scripts/verify-stage3-auth.mjs",
+    "test:teams": "node scripts/verify-stage4-teams.mjs",
     "test:browser": "node scripts/verify-browser.mjs"
   },
   "dependencies": {
