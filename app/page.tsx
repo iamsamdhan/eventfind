@@ -202,6 +202,7 @@ export default function HomePage() {
                   src="/logos/final logo.png.png"
                   alt="EventFind Icon"
                   fill
+                  priority
                   className="object-contain"
                 />
               </div>
@@ -217,3 +218,4 @@ export default function HomePage() {
     </div>
   );
 }
+

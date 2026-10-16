@@ -17,7 +17,10 @@ export const metadata: Metadata = {
   description:
     "Student-focused event discovery and registration platform for hackathons, workshops, competitions, and collegiate festivals.",
   icons: {
-    icon: "/logos/final logo.png.png",
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/logos/final logo.png.png", type: "image/png" },
+    ],
     shortcut: "/logos/final logo.png.png",
     apple: "/logos/final logo.png.png",
   },
@@ -45,3 +48,4 @@ export default function RootLayout({
     </html>
   );
 }
+

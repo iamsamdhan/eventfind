@@ -95,7 +95,7 @@ export function Navbar() {
 
       {/* Mobile dropdown menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-4 pt-3 pb-6 space-y-3">
+        <div data-testid="mobile-nav-drawer" className="md:hidden border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-4 pt-3 pb-6 space-y-3">
           <nav className="space-y-1">
             {navLinks.map((link) => {
               const Icon = link.icon;
@@ -136,3 +136,4 @@ export function Navbar() {
     </header>
   );
 }
+
