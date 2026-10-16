@@ -5,11 +5,13 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/providers/ThemeToggle";
+import { useAuth } from "@/components/providers/AuthProvider";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Compass, Users, LayoutDashboard, Sparkles } from "lucide-react";
+import { Menu, X, Compass, Users, LayoutDashboard, Sparkles, User, LogOut } from "lucide-react";
 
 export function Navbar() {
   const pathname = usePathname();
+  const { user, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
   const navLinks = [
@@ -64,18 +66,43 @@ export function Navbar() {
           <div className="hidden md:flex items-center gap-3">
             <ThemeToggle />
             
-            <Link href="/login">
-              <Button variant="ghost" size="md">
-                Log in
-              </Button>
-            </Link>
+            {user ? (
+              <div className="flex items-center gap-2">
+                <Link href="/profile">
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <User className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                    <span className="font-semibold text-xs">@{user.username}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 font-bold uppercase">
+                      {user.role}
+                    </span>
+                  </Button>
+                </Link>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => logout()} 
+                  className="text-xs text-slate-500 hover:text-rose-600 gap-1"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  Logout
+                </Button>
+              </div>
+            ) : (
+              <>
+                <Link href="/login">
+                  <Button variant="ghost" size="md">
+                    Log in
+                  </Button>
+                </Link>
 
-            <Link href="/signup">
-              <Button variant="primary" size="md" className="gap-2 shadow-sm">
-                <Sparkles className="w-4 h-4" />
-                Sign up
-              </Button>
-            </Link>
+                <Link href="/signup">
+                  <Button variant="primary" size="md" className="gap-2 shadow-sm">
+                    <Sparkles className="w-4 h-4" />
+                    Sign up
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Mobile menu button */}
@@ -119,17 +146,43 @@ export function Navbar() {
           </nav>
 
           <div className="pt-4 border-t border-slate-100 dark:border-slate-800/80 flex flex-col gap-2">
-            <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
-              <Button variant="outline" size="lg" className="w-full">
-                Log in
-              </Button>
-            </Link>
-            <Link href="/signup" onClick={() => setMobileMenuOpen(false)}>
-              <Button variant="primary" size="lg" className="w-full gap-2">
-                <Sparkles className="w-4 h-4" />
-                Sign up
-              </Button>
-            </Link>
+            {user ? (
+              <>
+                <Link href="/profile" onClick={() => setMobileMenuOpen(false)}>
+                  <Button variant="outline" size="lg" className="w-full justify-between">
+                    <span className="flex items-center gap-2">
+                      <User className="w-4 h-4 text-blue-600" />
+                      @{user.username}
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 font-bold uppercase">
+                      {user.role}
+                    </span>
+                  </Button>
+                </Link>
+                <Button 
+                  variant="ghost" 
+                  size="lg" 
+                  onClick={() => { setMobileMenuOpen(false); logout(); }} 
+                  className="w-full text-rose-600 gap-2"
+                >
+                  <LogOut className="w-4 h-4" /> Log out
+                </Button>
+              </>
+            ) : (
+              <>
+                <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
+                  <Button variant="outline" size="lg" className="w-full">
+                    Log in
+                  </Button>
+                </Link>
+                <Link href="/signup" onClick={() => setMobileMenuOpen(false)}>
+                  <Button variant="primary" size="lg" className="w-full gap-2">
+                    <Sparkles className="w-4 h-4" />
+                    Sign up
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       )}

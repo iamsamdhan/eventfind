@@ -1,9 +1,12 @@
 import Link from "next/link";
+import { requireRole } from "@/lib/auth/session";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle, CardDescription } from "@/components/ui/card";
 import { CalendarPlus, ArrowLeft } from "lucide-react";
 
-export default function NewEventPage() {
+export default async function NewEventPage() {
+  await requireRole(["ORGANIZER", "ADMIN"], "/organizer/events/new");
+
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
       <Card className="text-center p-8 space-y-4">
@@ -25,4 +28,3 @@ export default function NewEventPage() {
     </div>
   );
 }
-

@@ -62,6 +62,7 @@ async function runBrowserVerification() {
   // Track failed network requests
   page.on('requestfailed', request => {
     if (request.url().includes('invalid-non-existent-event-xyz')) return;
+    if (request.failure()?.errorText === 'net::ERR_ABORTED') return; // Next.js canceled prefetch
     console.error(`[Request Failed] ${request.url()} - ${request.failure()?.errorText}`);
     results.failedRequests.push({ url: request.url(), error: request.failure()?.errorText });
   });
@@ -428,6 +429,48 @@ async function runBrowserVerification() {
     passed: detailStatus === 200 && detailData.hasRegisterCTA && notFoundStatus === 404,
   };
 
+  // 8. Stage 3: Interactive Login, Session Cookie, Profile Page & Logout
+  console.log('\n--- Testing Interactive Login & Profile Workflow ---');
+  await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded', timeout: 10000 });
+  await new Promise(r => setTimeout(r, 400));
+
+  const identifierInput = await page.$('input[autocomplete="username"]');
+  const passwordInput = await page.$('input[autocomplete="current-password"]');
+  const submitBtn = await page.$('button[type="submit"]');
+
+  let browserLoginWorked = false;
+  let profileVisitedWorked = false;
+
+  if (identifierInput && passwordInput && submitBtn) {
+    await identifierInput.type('alex_student');
+    await passwordInput.type('Password123!');
+    await submitBtn.click();
+
+    await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => {});
+    await new Promise(r => setTimeout(r, 600));
+
+    const postLoginUrl = page.url();
+    console.log(`Post-login destination URL: ${postLoginUrl}`);
+    browserLoginWorked = postLoginUrl.includes('/explore');
+
+    // Visit /profile with active session
+    const profileRes = await page.goto(`${BASE_URL}/profile`, { waitUntil: 'domcontentloaded', timeout: 10000 });
+    await new Promise(r => setTimeout(r, 500));
+    const profileTitle = await page.evaluate(() => document.querySelector('h1')?.textContent || '');
+    const profileStatus = profileRes.status();
+    console.log(`Profile page status: ${profileStatus}, Header: "${profileTitle}"`);
+    profileVisitedWorked = profileStatus === 200 && profileTitle.includes('Alex Rivera');
+
+    const profileScreenshot = path.join(SCREENSHOT_DIR, 'profile_page_desktop.png');
+    await page.screenshot({ path: profileScreenshot, fullPage: true });
+  }
+
+  results.stage3BrowserWorkflow = {
+    browserLoginWorked,
+    profileVisitedWorked,
+    passed: browserLoginWorked && profileVisitedWorked,
+  };
+
   await browser.close();
 
   const reportFile = path.join(OUTPUT_DIR, 'verification-summary.json');
@@ -444,6 +487,7 @@ async function runBrowserVerification() {
   console.log(`- Mobile viewport & drawer: ${results.mobileViewportTest?.mobileDrawerOpened ? 'PASSED' : 'FAILED'}`);
   console.log(`- Discovery search & filter workflow: ${results.discoveryWorkflowTest?.allPassed ? 'PASSED' : 'FAILED'}`);
   console.log(`- Event detail page & 404 test: ${results.eventDetailTest?.passed ? 'PASSED' : 'FAILED'}`);
+  console.log(`- Interactive login & profile test: ${results.stage3BrowserWorkflow?.passed ? 'PASSED' : 'FAILED'}`);
   console.log(`- Report written to: ${reportFile}`);
   console.log('=============================================\n');
 
@@ -455,7 +499,8 @@ async function runBrowserVerification() {
     !results.mobileViewportTest?.mobileDrawerOpened ||
     !results.directLogoVerification.every(l => l.success) ||
     !results.discoveryWorkflowTest?.allPassed ||
-    !results.eventDetailTest?.passed
+    !results.eventDetailTest?.passed ||
+    !results.stage3BrowserWorkflow?.passed
   ) {
     console.error('Verification found defects!');
     process.exit(1);

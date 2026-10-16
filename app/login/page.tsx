@@ -3,32 +3,60 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useAuth } from "@/components/providers/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert } from "@/components/ui/alert";
-import { Lock, Mail, ArrowRight, ShieldCheck } from "lucide-react";
+import { ArrowRight, ShieldCheck } from "lucide-react";
 
-export default function LoginPage() {
+function LoginForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnUrl = searchParams.get("returnUrl") || "";
+  const { refreshUser } = useAuth();
+
   const [identifier, setIdentifier] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(false);
-  const [infoMessage, setInfoMessage] = React.useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setInfoMessage(null);
+    setErrorMessage(null);
 
-    // Note: Full server authentication and credential verification will be hooked in Stage 3.
-    // At that stage, the backend will verify credentials against the database and issue a session
-    // cookie, redirecting automatically to /organizer/dashboard, /explore, or /admin based on the trusted role.
-    setTimeout(() => {
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        setErrorMessage(data.error || "Invalid email/username or password.");
+        setIsLoading(false);
+        return;
+      }
+
+      // Refresh auth context so navbar updates immediately
+      await refreshUser();
+
+      // Determine redirect destination: honor safe returnUrl or use server-provided role dashboard
+      let target = data.redirectTo || "/explore";
+      if (returnUrl && returnUrl.startsWith("/") && !returnUrl.startsWith("//")) {
+        target = returnUrl;
+      }
+
+      router.push(target);
+      router.refresh();
+    } catch {
+      setErrorMessage("An unexpected network error occurred. Please try again.");
       setIsLoading(false);
-      setInfoMessage(
-        "Authentication UI active. In Stage 3, submitting your credentials will verify your account against the PostgreSQL database and route you automatically to your designated portal based on your trusted role."
-      );
-    }, 600);
+    }
   };
 
   return (
@@ -57,14 +85,14 @@ export default function LoginPage() {
           <CardHeader className="space-y-1 text-center pb-6">
             <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
             <CardDescription className="text-xs leading-relaxed">
-              Unified sign-in for students, team leads, organizers, and campus administrators. Your role and permissions are resolved securely on the server.
+              Unified sign-in for students, team leads, organizers, and administrators. Your role and permissions are resolved securely on the server.
             </CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-6">
-            {infoMessage && (
-              <Alert variant="info" title="Stage 1 Verification Notice">
-                {infoMessage}
+            {errorMessage && (
+              <Alert variant="error" title="Authentication Error">
+                {errorMessage}
               </Alert>
             )}
 
@@ -78,6 +106,7 @@ export default function LoginPage() {
                   onChange={(e) => setIdentifier(e.target.value)}
                   required
                   autoComplete="username"
+                  disabled={isLoading}
                 />
               </div>
 
@@ -100,6 +129,7 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   autoComplete="current-password"
+                  disabled={isLoading}
                 />
               </div>
 
@@ -143,7 +173,7 @@ export default function LoginPage() {
             <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3.5 border border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 flex items-start gap-2.5">
               <ShieldCheck className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
               <p className="leading-relaxed">
-                Role-based routing (Student, Organizer, Admin) is enforced securely by the server post-authentication.
+                Role-based routing (Student vs. Organizer) is resolved strictly from trusted server data. Zero browser role injection.
               </p>
             </div>
           </CardContent>
@@ -164,3 +194,10 @@ export default function LoginPage() {
   );
 }
 
+export default function LoginPage() {
+  return (
+    <React.Suspense fallback={<div className="min-h-[80vh] flex items-center justify-center text-xs text-slate-400">Loading sign in...</div>}>
+      <LoginForm />
+    </React.Suspense>
+  );
+}
