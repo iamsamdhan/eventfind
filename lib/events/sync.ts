@@ -7,9 +7,18 @@ let eventsSynced = false;
 
 /**
  * Ensures baseline development seed events are populated in PostgreSQL
+ * during non-production testing or when explicitly enabled.
+ * In production, mock records are prevented from polluting a fresh database,
+ * and existing database events are never overwritten.
  */
 export async function syncSeedEventsToDatabase(): Promise<void> {
   if (eventsSynced) return;
+
+  // In production, prevent injecting development seed mock records into the live database
+  if (process.env.NODE_ENV === "production" && process.env.ENABLE_SEED_EVENTS !== "true") {
+    eventsSynced = true;
+    return;
+  }
 
   const isDb = await checkDatabaseAvailability();
   if (!isDb) return;
@@ -49,15 +58,7 @@ export async function syncSeedEventsToDatabase(): Promise<void> {
           organizerOrg: seed.organizer.organization,
           organizerEmail: seed.organizer.contactEmail,
         },
-        update: {
-          title: seed.title,
-          tagline: seed.tagline,
-          capacity: seed.capacity,
-          isTeamEvent: seed.isTeamEvent,
-          minTeamSize: seed.minTeamSize,
-          maxTeamSize: seed.maxTeamSize,
-          registrationDeadline: new Date(seed.registrationDeadline),
-        },
+        update: {}, // Never overwrite organizer-managed event data in the database
       });
     }
 
@@ -122,7 +123,12 @@ export async function getDbEventBySlugOrId(idOrSlug: string): Promise<EventItem 
     }
   }
 
-  // Fallback to static seed
+  // In production, an event not found in the database does not exist
+  if (process.env.NODE_ENV === "production") {
+    return null;
+  }
+
+  // Non-production fallback to static seed for local development/testing
   const normalized = idOrSlug.toLowerCase().trim();
   const found = SEED_EVENTS.find(
     (e) => e.id.toLowerCase() === normalized || e.slug.toLowerCase() === normalized

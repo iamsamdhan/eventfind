@@ -61,10 +61,10 @@ export async function getEvents(params: EventFilterParams = {}): Promise<{
         },
       }));
     } catch {
-      allEvents = [...SEED_EVENTS].filter((e) => e.published);
+      allEvents = process.env.NODE_ENV === "production" ? [] : [...SEED_EVENTS].filter((e) => e.published);
     }
   } else {
-    allEvents = [...SEED_EVENTS].filter((e) => e.published);
+    allEvents = process.env.NODE_ENV === "production" ? [] : [...SEED_EVENTS].filter((e) => e.published);
   }
 
   let filtered = allEvents;
