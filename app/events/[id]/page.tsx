@@ -1,6 +1,10 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getEventBySlugOrId, getEvents } from "@/lib/events/service";
+import { getCurrentUser } from "@/lib/auth/session";
+import { getUserRegistrations } from "@/lib/registrations/service";
+import { getUserTeams } from "@/lib/teams/service";
+import { EventRegistrationCard } from "@/components/events/EventRegistrationCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -52,6 +56,31 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
   if (!event) {
     notFound();
   }
+
+  const currentUser = await getCurrentUser();
+  let userRegistrations: any[] = [];
+  let userLeaderTeams: any[] = [];
+
+  if (currentUser) {
+    try {
+      userRegistrations = await getUserRegistrations(currentUser.id, event.id);
+      const allTeams = await getUserTeams(currentUser.id);
+      userLeaderTeams = allTeams.filter(
+        (t) =>
+          t.creatorId === currentUser.id ||
+          t.members.some((m) => m.userId === currentUser.id && m.role === "LEADER")
+      );
+    } catch {
+      // Allow graceful fallback if DB is temporarily loading
+    }
+  }
+
+  const existingReg =
+    userRegistrations.find(
+      (r) =>
+        (r.eventId === event.id || r.event.slug === event.slug) &&
+        r.status !== "CANCELLED"
+    ) || null;
 
   const startDateFormatted = new Date(event.startDate).toLocaleDateString("en-US", {
     weekday: "long",
@@ -353,16 +382,14 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
               </div>
             </div>
 
-            {/* Call to Action Button */}
-            <div className="pt-2 space-y-2.5">
-              <Link href="/login" className="block w-full">
-                <Button size="lg" className="w-full gap-2 shadow-md">
-                  {isDeadlinePassed ? "Registration Closed" : "Register for Event"}
-                </Button>
-              </Link>
-              <p className="text-[11px] text-center text-slate-500 dark:text-slate-400">
-                Sign in required to register solo or assemble your squad.
-              </p>
+            {/* Registration Action Section */}
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+              <EventRegistrationCard
+                event={event}
+                currentUser={currentUser}
+                initialRegistration={existingReg}
+                userTeams={userLeaderTeams}
+              />
             </div>
           </Card>
 

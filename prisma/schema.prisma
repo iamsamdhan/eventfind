@@ -25,6 +25,30 @@ enum InvitationStatus {
   CANCELLED
 }
 
+enum EventCategory {
+  HACKATHON
+  WORKSHOP
+  FEST
+  COMPETITION
+}
+
+enum EventFormat {
+  ONLINE
+  IN_PERSON
+  HYBRID
+}
+
+enum RegistrationType {
+  INDIVIDUAL
+  TEAM
+}
+
+enum RegistrationStatus {
+  CONFIRMED
+  CANCELLED
+  WAITLISTED
+}
+
 model User {
   id           String    @id @default(cuid())
   username     String    @unique
@@ -44,6 +68,7 @@ model User {
   teamMemberships     TeamMember[]     @relation("UserMemberships")
   sentInvitations     TeamInvitation[] @relation("SentInvitations")
   receivedInvitations TeamInvitation[] @relation("ReceivedInvitations")
+  registrations       Registration[]   @relation("UserRegistrations")
 
   @@index([email])
   @@index([username])
@@ -63,6 +88,47 @@ model Session {
   @@map("sessions")
 }
 
+model Event {
+  id                   String        @id @default(cuid())
+  slug                 String        @unique
+  title                String
+  tagline              String
+  description          String        @db.Text
+  category             EventCategory @default(HACKATHON)
+  format               EventFormat   @default(IN_PERSON)
+  location             String
+  city                 String
+  venue                String?
+  startDate            DateTime
+  endDate              DateTime
+  registrationDeadline DateTime
+  capacity             Int
+  registeredCount      Int           @default(0)
+  isTeamEvent          Boolean       @default(false)
+  minTeamSize          Int           @default(1)
+  maxTeamSize          Int           @default(1)
+  eligibility          String        @default("Open to all enrolled students with valid student ID.")
+  tags                 String[]      @default([])
+  prizes               String[]      @default([])
+  featured             Boolean       @default(false)
+  published            Boolean       @default(true)
+  bannerGradient       String        @default("from-blue-600 via-indigo-600 to-purple-700")
+  imageUrl             String?
+  organizerId          String?
+  organizerName        String        @default("Event Organizer")
+  organizerOrg         String        @default("Student Tech Collective")
+  organizerEmail       String        @default("organizers@eventfind.dev")
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  registrations        Registration[]
+
+  @@index([slug])
+  @@index([category])
+  @@index([published])
+  @@map("events")
+}
+
 model Team {
   id          String   @id @default(cuid())
   name        String
@@ -74,8 +140,9 @@ model Team {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  members     TeamMember[]
-  invitations TeamInvitation[]
+  members       TeamMember[]
+  invitations   TeamInvitation[]
+  registrations Registration[]
 
   @@index([creatorId])
   @@index([eventId])
@@ -116,4 +183,27 @@ model TeamInvitation {
   @@index([inviteeId])
   @@index([status])
   @@map("team_invitations")
+}
+
+model Registration {
+  id        String             @id @default(cuid())
+  eventId   String
+  event     Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User               @relation("UserRegistrations", fields: [userId], references: [id], onDelete: Cascade)
+  teamId    String?
+  team      Team?              @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  type      RegistrationType   @default(INDIVIDUAL)
+  status    RegistrationStatus @default(CONFIRMED)
+  spots     Int                @default(1)
+  notes     String?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([userId])
+  @@index([teamId])
+  @@index([status])
+  @@map("registrations")
 }
